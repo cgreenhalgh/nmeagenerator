@@ -1,0 +1,97 @@
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <title>Simple NMEA Generator (e.g. for Android mock location input)</title>
+    <link rel="stylesheet" href="theme/default/style.css" type="text/css" />
+    <link rel="stylesheet" href="style.css" type="text/css" />
+    <script type="text/javascript" src="lib/OpenLayers.js"></script>
+    <script type="text/javascript" src="lib/jquery-1.4.2.min.js"></script>
+    <script type="text/javascript">
+        // default/standard click handler as class
+        OpenLayers.Control.Click = OpenLayers.Class(OpenLayers.Control, {
+            defaultHandlerOptions: {
+                'single': true,
+                'double': false,
+                'pixelTolerance': 0,
+                'stopSingle': false,
+                'stopDouble': false
+            },
+
+            initialize: function(options) {
+                this.handlerOptions = OpenLayers.Util.extend(
+                        {}, this.defaultHandlerOptions
+                    );
+                OpenLayers.Control.prototype.initialize.apply(
+                        this, arguments
+                    );
+                this.handler = new OpenLayers.Handler.Click(
+                        this, {
+                            'click': this.trigger
+                        }, this.handlerOptions
+                    );
+            },
+
+            trigger: function(e) {
+                var lonlat = map.getLonLatFromViewPortPx(e.xy);
+                //alert("You clicked near " + lonlat.lat + " N, " +
+                //                              +lonlat.lon + " E");
+                var include_geo_nmea = $('#include_geo_nmea').attr('checked');
+                //alert('include: ' + include_geo_nmea);
+                var text = $('#nmea_out').attr('value');
+                if (include_geo_nmea)
+                    text += 'geo nmea ';
+                // 
+                var nmea = '$GPGGA ';
+                text += nmea;
+                $('#nmea_out').attr('value', text);
+
+            }
+
+        });
+
+        var map, layer;
+        function init(){
+            map = new OpenLayers.Map( 'map');
+            layer = new OpenLayers.Layer.OSM( "Simple OSM Map");
+            map.addLayer(layer);
+            map.setCenter(
+                new OpenLayers.LonLat(-71.147, 42.472).transform(
+                    new OpenLayers.Projection("EPSG:4326"),
+                    map.getProjectionObject()
+                ), 12
+            );
+
+            // add click handler
+            var click = new OpenLayers.Control.Click();
+            map.addControl(click);
+            click.activate();
+
+        }
+
+        function clear_nmea() {
+            //alert('clean_nmea');
+            $('#nmea_out').attr('value', '');
+            return false;
+        }
+    </script>
+  </head>
+  <body onload="init()">
+    <h1 id="title">Basic OSM Example</h1>
+
+    <div id="tags"></div>
+
+    <div id="shortdesc">Show a Simple OSM Map</div>
+
+    <div id="map" class="smallmap"></div>
+
+    <div id="docs">
+        This example shows a very simple OSM layout with minimal controls. 
+    </div>
+    
+    <div id="output">
+        <textarea id="nmea_out" name="nmea_out" rows="10" cols="60">NMEA...</textarea>
+        <br />
+        <input value="Clear" onclick="return clear_nmea()" type="button" />
+        <input id="include_geo_nmea" type="checkbox" checked="checked" value="Include: geo nmea" />
+    </div>
+  </body>
+</html>
