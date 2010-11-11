@@ -6,6 +6,34 @@
     <script type="text/javascript" src="lib/OpenLayers.js"></script>
     <script type="text/javascript" src="lib/jquery-1.4.2.min.js"></script>
     <script type="text/javascript">
+        // number 0 padded util
+        function number2d(num) {
+            var s = new String(num);
+            if (s.length == 1)
+                s = '0' + s;
+            return s;
+        }
+        function number3d(num) {
+            var s = number2d(num);
+            if (s.length == 2)
+                s = '0' + s;
+            return s;
+        }
+        function degrees2degreesminuteslat(lat) {
+            var deg = Math.floor(lat);
+            var min = Math.floor((lat - deg) * 60);
+            //'['+deg+','+min+']'+
+            return number2d(deg) + number2d(min) + '.' + Math.floor(((lat - deg) * 60 - min) * 1000);
+        }
+        function degrees2degreesminuteslon(lat) {
+            var deg = Math.floor(lat);
+            var min = Math.floor((lat - deg) * 60);
+            //'['+deg+','+min+']'+
+            return number3d(deg) + number2d(min) + '.' + Math.floor(((lat - deg) * 60 - min) * 1000);
+        }
+
+        var map, layer;
+
         // default/standard click handler as class
         OpenLayers.Control.Click = OpenLayers.Class(OpenLayers.Control, {
             defaultHandlerOptions: {
@@ -34,27 +62,82 @@
                 var lonlat = map.getLonLatFromViewPortPx(e.xy);
                 //alert("You clicked near " + lonlat.lat + " N, " +
                 //                              +lonlat.lon + " E");
+                //alert('lonlat = ' + lonlat);
+                lonlat = lonlat.transform(
+                    map.getProjectionObject(),
+                    new OpenLayers.Projection("EPSG:4326")
+                    );
+                //alert('lonlat = ' + lonlat);
+                $('#latlon_out').attr('value', new Number(lonlat.lon).toFixed(6) + ',' + new Number(lonlat.lat).toFixed(6));
                 var include_geo_nmea = $('#include_geo_nmea').attr('checked');
                 //alert('include: ' + include_geo_nmea);
                 var text = $('#nmea_out').attr('value');
                 if (include_geo_nmea)
                     text += 'geo nmea ';
-                // 
-                var nmea = '$GPGGA ';
-                text += nmea;
+                // http://aprs.gids.nl/nmea/#gga
+                //    eg3. $GPGGA,hhmmss.ss,llll.ll,a,yyyyy.yy,a,x,xx,x.x,x.x,M,x.x,M,x.x,xxxx*hh
+                // add the $ at the end as it is not included in the checksum.
+                var nmea = 'GPGGA,';
+                //    1    = UTC of Position
+                var now = new Date();
+                nmea += number2d(now.getUTCHours()) + number2d(now.getUTCMinutes()) + number2d(now.getUTCSeconds()) + ',';
+                //    2    = Latitude
+                var ns = 'N';
+                var lat = lonlat.lat;
+                if (lat < 0) {
+                    ns = 'S';
+                    lat = -lat;
+                }
+                nmea += degrees2degreesminuteslat(lat) + ',';
+                //    3    = N or S
+                nmea += ns + ',';
+                //    4    = Longitude
+                var ew = 'E';
+                var lon = lonlat.lon;
+                if (lon < 0) {
+                    ew = 'W';
+                    lon = -lon;
+                }
+                nmea += degrees2degreesminuteslon(lon) + ',';
+                //    5    = E or W
+                nmea += ew + ',';
+                //    6    = GPS quality indicator (0=invalid; 1=GPS fix; 2=Diff. GPS fix)
+                nmea += '2,';
+                //    7    = Number of satellites in use [not those in view]
+                nmea += '4,'; // ...say
+                //    8    = Horizontal dilution of position
+                nmea += '1.5,'; // ...say
+                //    9    = Antenna altitude above/below mean sea level (geoid)
+                nmea += '0,'; // ...say
+                //    10   = Meters  (Antenna height unit)
+                nmea += 'M,';
+                //    11   = Geoidal separation (Diff. between WGS-84 earth ellipsoid and
+                //           mean sea level.  -=geoid is below WGS-84 ellipsoid)
+                nmea += '0,'; // ...say
+                //    12   = Meters  (Units of geoidal separation)
+                nmea += 'M,';
+                //    13   = Age in seconds since last update from diff. reference station [can be blank]
+                nmea += ',';
+                //    14   = Diff. reference station ID# [can be blank]
+                //nmea += '';
+                //    15   = Checksum
+                var checksum = 0;
+                for (var i = 0; i < nmea.length; i++)
+                    checksum = checksum ^ (nmea.charAt(i) & 0xff);
+                nmea = '$' + nmea + '*' + number2d(checksum);
+                text += nmea + '\n';
                 $('#nmea_out').attr('value', text);
 
             }
 
         });
 
-        var map, layer;
         function init(){
             map = new OpenLayers.Map( 'map');
             layer = new OpenLayers.Layer.OSM( "Simple OSM Map");
             map.addLayer(layer);
             map.setCenter(
-                new OpenLayers.LonLat(-71.147, 42.472).transform(
+                new OpenLayers.LonLat(-1.188, 52.953).transform(
                     new OpenLayers.Projection("EPSG:4326"),
                     map.getProjectionObject()
                 ), 12
@@ -75,23 +158,28 @@
     </script>
   </head>
   <body onload="init()">
-    <h1 id="title">Basic OSM Example</h1>
+    <h1 id="title">Simple NMEA Generator</h1>
 
     <div id="tags"></div>
 
-    <div id="shortdesc">Show a Simple OSM Map</div>
+    <div id="shortdesc">Left-click on the (OSM) map to generate NMEA GPGGA sentances</div>
 
     <div id="map" class="smallmap"></div>
 
     <div id="docs">
-        This example shows a very simple OSM layout with minimal controls. 
     </div>
     
     <div id="output">
-        <textarea id="nmea_out" name="nmea_out" rows="10" cols="60">NMEA...</textarea>
+        Long.,Lat. (WGS84):
+        <br />
+        <input type="text" size="60" id="latlon_out" value="Click on map..." readonly="readonly"/>
+        <br />
+        NMEA:
+        <br />
+        <textarea id="nmea_out" name="nmea_out" rows="10" cols="60" readonly="readonly"></textarea>
         <br />
         <input value="Clear" onclick="return clear_nmea()" type="button" />
-        <input id="include_geo_nmea" type="checkbox" checked="checked" value="Include: geo nmea" />
+        Include 'geo nmea' <input id="include_geo_nmea" type="checkbox" checked="checked" />
     </div>
   </body>
 </html>
