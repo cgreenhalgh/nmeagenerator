@@ -13,6 +13,12 @@
                 s = '0' + s;
             return s;
         }
+        function number2h(num) {
+            var s = new Number(num).toString(16).toUpperCase();
+            if (s.length == 1)
+                s = '0' + s;
+            return s;
+        }
         function number3d(num) {
             var s = number2d(num);
             if (s.length == 2)
@@ -122,9 +128,10 @@
                 //nmea += '';
                 //    15   = Checksum
                 var checksum = 0;
-                for (var i = 0; i < nmea.length; i++)
-                    checksum = checksum ^ (nmea.charAt(i) & 0xff);
-                nmea = '$' + nmea + '*' + number2d(checksum);
+                for (var i = 0; i < nmea.length; i++) {
+                    checksum = checksum ^ (nmea.charCodeAt(i));
+                }
+                nmea = '$' + nmea + '*' + number2h(checksum);
                 text += nmea + '\n';
                 $('#nmea_out').attr('value', text);
 
